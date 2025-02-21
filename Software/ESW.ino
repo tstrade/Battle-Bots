@@ -1,33 +1,13 @@
-//#include <Wire.h>
 #include <Servo.h>
-//#include <Arduino.h>
-//#include "pitches.h"
 
 /* >>> Motors & ESC >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
 
-Servo Drive;
-Servo Turn;
+Servo R_Wheel;
+Servo L_Wheel;
 Servo Weapon;
 
 #define S1_PIN        (   5)
 #define S2_PIN        (   2)
-
-#define FULL_REVERSE  (1000)
-#define MEDH_REVERSE  (1175)
-#define MEDL_REVERSE  (1325)
-
-#define FULL_STOPPED  (1500)
-
-#define MEDL_FORWARD  (1675)
-#define MEDH_FORWARD  (1825)
-#define FULL_FORWARD  (2000)
-
-const short speeds[] = 
-{
-  FULL_REVERSE, MEDH_REVERSE, MEDL_REVERSE,
-  FULL_STOPPED,
-  MEDL_FORWARD, MEDH_FORWARD, FULL_FORWARD
-};
 
 void adjustMotors(void);
 
@@ -37,16 +17,31 @@ void adjustMotors(void);
 
 /* >>> RC Receiver >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
 
-#define FWD_CHANNEL   (   3) 
-#define TRN_CHANNEL   (   6)
-#define SWA_CHANNEL   (   7)
+#define FWD_CHANNEL   (   6) 
+#define TRN_CHANNEL   (   3)
+#define SWA_CHANNEL   (   9)
 #define RCV_MIN       (1000)
 #define RCV_MAX       (2000)
+
+#define FULL_REVERSE  (1000)
+#define MEDH_REVERSE  (1150)
+#define MEDM_REVERSE  (1300)
+#define MEDL_REVERSE  (1400)
+
+#define FULL_STOPPED  (1500)
+
+#define MEDL_FORWARD  (1650)
+#define MEDM_FORWARD  (1750)
+#define MEDH_FORWARD  (1850)
+#define FULL_FORWARD  (2000)
 
 int BF_Value;
 int LR_Value;
 int SW_Value;
 
+int dirFactor;
+
+int mapToNearestSpeed(int speed);
 __attribute__((always_inline)) int readChannel(int channelInput);
 __attribute__((always_inline)) bool readSwitch(void);
 __attribute__((always_inline)) void monitorWeapon(void);
@@ -55,117 +50,34 @@ __attribute__((always_inline)) void monitorWeapon(void);
 
 
 
-/* >>> Buzzer >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-/*
-#define BUZZER_PIN     ( 12)
-#define EIGHTON        ( 75)
-#define EIGHTOFF       ( 75)
-#define QUARTON        (200)
-#define QUARTOFF       ( 50)
-#define HALFON         (400)
-#define HALFOFF        (100)
-
-const int gourmet_race_notes[] =
-{
-  // Measure 1
-  NOTE_G6,  NOTE_F6, NOTE_DS6, NOTE_D6, NOTE_AS5, NOTE_G5,
-  NOTE_C6,  NOTE_D6, NOTE_DS6, NOTE_F6, NOTE_D6,
-  NOTE_C7,  NOTE_G6, 
-  NOTE_DS6, NOTE_D6, NOTE_C6,
-  NOTE_C6,  NOTE_D6, NOTE_DS6, NOTE_C6,
-  // Measure 6
-  NOTE_AS5, NOTE_C6, NOTE_G5,
-  NOTE_C7,  NOTE_G6, 
-  NOTE_DS6, NOTE_D6, NOTE_C6,  NOTE_C6, NOTE_D6,
-  NOTE_DS6, NOTE_F6, NOTE_D6,  NOTE_C6, NOTE_AS5,
-  NOTE_C6,  NOTE_G5, NOTE_C6,
-  // Measure 11
-  NOTE_C7,  NOTE_G6, 
-  NOTE_DS6, NOTE_D6, NOTE_C6,
-  NOTE_C6,  NOTE_D6, NOTE_DS6, NOTE_C6,
-  NOTE_AS6, NOTE_C6, NOTE_G5,
-  // Measure 16
-  NOTE_C7,  NOTE_G6, 
-  NOTE_DS6, NOTE_F6, NOTE_G6, NOTE_C6,
-  NOTE_D6,  NOTE_F6, NOTE_D6, NOTE_AS5, NOTE_C6
-};
-
-const int gourmet_race_lengths[] =
-{
-  // Measure 1
-  QUARTON, QUARTOFF, EIGHTON, EIGHTOFF, EIGHTON, EIGHTOFF, 
-  EIGHTON, EIGHTOFF, EIGHTON, EIGHTOFF, QUARTON, QUARTOFF,
-  // Measure 2
-  EIGHTON, EIGHTOFF, EIGHTON, EIGHTOFF, EIGHTON, EIGHTOFF,
-  EIGHTON, EIGHTOFF, HALFON,  HALFOFF,
-  // Measure 3
-  HALFON,  HALFOFF,  HALFON,  HALFOFF,
-  // Measure 4
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, HALFON, HALFOFF,
-  // Measure 5
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, QUARTON, QUARTOFF, QUARTON, QUARTOFF,
-  // Measure 6
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, HALFON, HALFOFF,
-  // Measure 7
-  HALFON,  HALFOFF,  HALFON,  HALFOFF,
-  // Measure 8
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, QUARTON, QUARTOFF,
-  EIGHTON, EIGHTOFF, EIGHTON, EIGHTOFF,
-  // Measure 9
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, EIGHTON, EIGHTOFF,
-  EIGHTON, EIGHTOFF, QUARTON, QUARTOFF,
-  // Measure 10
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, HALFON,  HALFOFF,
-  // Measure 11
-  HALFON,  HALFOFF,  
-  // Measure 12
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, HALFON, HALFOFF,
-  // Measure 13
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, QUARTON, QUARTOFF, QUARTON, QUARTOFF,
-  // Measure 14
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, HALFON,  HALFOFF,
-  // Measure 15
-  HALFON,  HALFOFF,  HALFON,  HALFOFF,
-  // Measure 16
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, QUARTON, QUARTOFF, QUARTON, QUARTOFF,
-  // Measure 17
-  QUARTON, QUARTOFF, QUARTON, QUARTOFF, QUARTON, QUARTOFF, QUARTON, QUARTOFF,
-  // Measure 18
-  HALFON,  HALFOFF
-};
-*/
-
-void taunt(void);
-
-/* <<< Buzzer <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
-
-
-
 /* >>> Main Program >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
 
 void setup()
 {
   Serial.begin(9600);
-  Drive.attach(S1_PIN);
-  Turn.attach(S2_PIN);
+  R_Wheel.attach(S1_PIN);
+  L_Wheel.attach(S2_PIN);
+
+  R_Wheel.writeMicroseconds(FULL_STOPPED);
+  L_Wheel.writeMicroseconds(FULL_STOPPED);
 
   pinMode(FWD_CHANNEL, INPUT);
   pinMode(TRN_CHANNEL, INPUT);
   pinMode(SWA_CHANNEL, INPUT);
+
+  delay(500);
 }
 
 void loop()
 {
-  while(readSwitch());
-  /*
-  if (readSwitch()) {
-    Drive.detach();
-    Turn.detach();
+  while(readSwitch()) {
+    R_Wheel.writeMicroseconds(FULL_STOPPED);
+    L_Wheel.writeMicroseconds(FULL_STOPPED);
+    delay(500);
   }
-  */
 
   adjustMotors();
-  delay(1000);
+  delay(500);
 }
 
 /* <<< Main Program <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
@@ -175,42 +87,53 @@ void loop()
 /* >>> Motor Functions >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
 
 void adjustMotors()
-{
-  int speed, speed_left, speed_right;
-  bool move_forwards, turn_right;
-  
-  move_forwards = ((BF_Value = readChannel(FWD_CHANNEL)) > 0);
-  turn_right = ((LR_Value = readChannel(TRN_CHANNEL)) > 0);
-  
-  /* --------------------------------------------------- */
-  /*  _________________________________________________  */
-  /* |                                                 | */
-  /* | ! When BF_Value > 0, bot is moving forwards   ! | */
-  /* | ! When LR_Value > 0, bot is turning right     ! | */
-  /* |_________________________________________________| */
-  /* |                                                 | */
-  /* | ! When LR > 0, speed_left > speed_right       ! | */
-  /* | ! When LR < 0, speed_left < speed_right       ! | */
-  /* |_________________________________________________| */
-  /*                                                     */
-  /* --------------------------------------------------- */
+{ 
+  int speed_left, speed_right;
+  int speed_diff;
 
-/*
-  BF_Value *= 3;
-  LR_Value *= 1;
+  LR_Value = mapToNearestSpeed(readChannel(TRN_CHANNEL));
+  BF_Value = mapToNearestSpeed(readChannel(FWD_CHANNEL));
+  speed_left = speed_right = BF_Value;
 
-  if (turn_right) {
-    speed_left = (BF_Value + LR_Value) / 4;
-    speed_right = (BF_Value - LR_Value) / 4;
+  /* -------------------------------------------------------------- */
+  /*  ____________________________________________________________  */
+  /* |                                                            | */
+  /* | ! When BF_Value > FULL_STOPPED, bot is moving forwards   ! | */
+  /* | ! When LR_Value > FULL_STOPPED, bot is turning right     ! | */
+  /* |____________________________________________________________| */
+  /*                                                                */
+  /* -------------------------------------------------------------- */
+
+  // Bot is turning left, i.e., right wheel moves faster than left
+  if (LR_Value < FULL_STOPPED) {
+    speed_right += dirFactor;
+    speed_left -= dirFactor;
+
+    if ((speed_diff = speed_right - FULL_FORWARD) > 0) {
+      speed_right = FULL_FORWARD;
+      speed_left -= speed_diff;
+    }
+    else if ((speed_diff = speed_right - FULL_REVERSE) < 0) {
+      speed_right = FULL_REVERSE;
+      speed_left += speed_diff;
+    }
   }
-  else {
-    speed_left = (BF_Value - LR_Value) / 4;
-    speed_right = (BF_Value + LR_Value) / 4;
-  }
-*/
+  else if (LR_Value > FULL_STOPPED) {
+    speed_left += dirFactor;
+    speed_right -= dirFactor;
 
-  Drive.writeMicroseconds(BF_Value);
-  Turn.writeMicroseconds(LR_Value);
+    if ((speed_diff = speed_left - FULL_FORWARD) > 0) {
+      speed_left = FULL_FORWARD;
+      speed_right -= speed_diff;
+    }
+    else if ((speed_diff = speed_left - FULL_REVERSE) < 0) {
+      speed_left = FULL_REVERSE;
+      speed_right += speed_diff;
+    }
+  }
+
+  R_Wheel.writeMicroseconds(speed_right);
+  L_Wheel.writeMicroseconds(speed_left);
 }
 
 /* <<< Motor Functions <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
@@ -218,6 +141,50 @@ void adjustMotors()
 
 
 /* >>> Receiver Functions >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+
+int mapToNearestSpeed(int speed)
+{
+  if (speed < (FULL_STOPPED - 50)) {
+    if (speed < (MEDH_REVERSE - 50)) {
+      dirFactor = -60;
+      return FULL_REVERSE;
+    }
+    else if (speed < (MEDM_REVERSE - 50)) {
+      dirFactor = -55;
+      return MEDH_REVERSE;
+    }
+    else if (speed < (MEDL_REVERSE - 50)) {
+      dirFactor = -50;
+      return MEDM_REVERSE;
+    }
+    else {
+      dirFactor = -40;
+      return MEDL_REVERSE;
+    }
+  }
+  else if (speed < (MEDL_FORWARD - 50)) {
+    dirFactor = 0;
+    return FULL_STOPPED;
+  }
+  else {
+    dirFactor = 40;
+    if (speed < (MEDM_FORWARD - 50)) {
+      return MEDL_FORWARD;
+    }
+    else if (speed < (MEDH_FORWARD - 50)) {
+      dirFactor = 50;
+      return MEDM_FORWARD;
+    }
+    else if (speed < (FULL_FORWARD - 50)) {
+      dirFactor = 55;
+      return MEDH_FORWARD;
+    }
+    else {
+      dirFactor = 60;
+      return FULL_FORWARD;
+    }
+  }
+}
 
 __attribute__((always_inline)) int readChannel(int channelInput) 
 {
@@ -237,19 +204,3 @@ __attribute__((always_inline)) void monitorWeapon()
 /* <<< Receiver Functions <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
 
 
-
-/* >>> Buzzer Functions >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-/*
-void taunt()
-{
-  int i, j;
-  for (i = 0; i < 61; i++) {
-    j = i * 2;
-    tone(BUZZER_PIN, gourmet_race_notes[i]);
-    delay(gourmet_race_lengths[j]);
-    noTone(BUZZER_PIN);
-    delay(gourmet_race_lengths[j + 1]);
-  }
-}
-*/
