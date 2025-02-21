@@ -8,7 +8,9 @@ Servo Weapon;
 
 #define S1_PIN        (   5)
 #define S2_PIN        (   2)
+#define S3_PIN        (   8)
 
+bool startAttack = false;
 void adjustMotors(void);
 
 /* <<< Motors & ESC <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
@@ -57,9 +59,11 @@ void setup()
   Serial.begin(9600);
   R_Wheel.attach(S1_PIN);
   L_Wheel.attach(S2_PIN);
+  Weapon.attach(S3_PIN);
 
   R_Wheel.writeMicroseconds(FULL_STOPPED);
   L_Wheel.writeMicroseconds(FULL_STOPPED);
+  Weapon.writeMicroseconds(FULL_STOPPED);
 
   pinMode(FWD_CHANNEL, INPUT);
   pinMode(TRN_CHANNEL, INPUT);
@@ -73,7 +77,13 @@ void loop()
   while(readSwitch()) {
     R_Wheel.writeMicroseconds(FULL_STOPPED);
     L_Wheel.writeMicroseconds(FULL_STOPPED);
+    Weapon.writeMicroseconds(FULL_STOPPED);
+    startAttack = false;
     delay(500);
+  }
+
+  if (!startAttack) {
+    Weapon.writeMicroseconds(FULL_FORWARD);
   }
 
   adjustMotors();
