@@ -1,104 +1,163 @@
 #include <Wire.h>
 #include <Servo.h>
+#include <pitches.h>
 
-// Servo motors (ESCs)
-Servo Left, Right, Weapon;
+/* >>> Motors & ESC >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
 
-#define minMotorSpeed 1000
-#define maxMotorSpeed 2000
-#define SHUTDOWN         0
+Servo L_Wheel;
+Servo R_Wheel;
+Servo Weapon;
 
-// RC Controller
-#define LEFT_RIGHT         6
-#define FORWARD_BACKWARD  10
-#define WEAPON_SWITCH     11
+#define S1_PIN        (   5)
+#define S2_PIN        (   2)
 
-int left_right;
-int fwd_bckwd;
-bool weaponized;
+void adjustMotors(void);
 
-__attribute__((always_inline)) int readChannel(int channelInput, int minLimit, int maxLimit);
-__attribute__((always_inline)) int filterSpeed(int x_speed, int y_speed);
-__attribute__((always_inline)) bool readSwitch(byte channelInput);
-__attribute__((always_inline)) void monitorWeapon();
+/* <<< Motors & ESC <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
+
+
+
+/* >>> RC Receiver >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+
+#define FWD_CHANNEL   (   3) 
+#define TRN_CHANNEL   (   6)
+#define RCV_MIN       ( 100)
+#define RCV_MAX       (-100)
+
+int BF_Value;
+int LR_Value;
+
+__attribute__((always_inline)) int readChannel(int channelInput);
+__attribute__((always_inline)) bool readSwitch(int channelInput);
+__attribute__((always_inline)) void monitorWeapon(void);
+
+/* <<< RC Receiver <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
+
+
+
+/* >>> Buzzer >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+
+#define BUZZER_PIN     (  8)
+#define EIGHTH_ON      ( 75)
+#define EIGHTH_OFF     ( 75)
+#define QUARTER_ON     (200)
+#define QUARTER_OFF    ( 50)
+#define HALR_ON        (400)
+#define HALR_OFF       (100)
+
+
+const int gourmet_race_notes[] =
+{
+  NOTE_G6,  NOTE_F6, NOTE_DS6, NOTE_D6, NOTE_AS5, NOTE_G5,
+  NOTE_C6,  NOTE_D6, NOTE_DS6, NOTE_F6, NOTE_D6,
+  NOTE_AS6, NOTE_G6, 
+  NOTE_DS6, NOTE_D6, NOTE_C6,
+  NOTE_C6,  NOTE_D6, NOTE_DS6, NOTE_C6,
+  
+  NOTE_AS5, NOTE_C6, NOTE_G5,
+  NOTE_AS6, NOTE_G6, 
+  NOTE_DS6, NOTE_D6, NOTE_C6,  NOTE_C6, NOTE_D6,
+  NOTE_DS6, NOTE_F6, NOTE_D6,  NOTE_C6, NOTE_AS5,
+  NOTE_C6,  NOTE_G5, NOTE_C6,
+  
+  NOTE_AS6, NOTE_G6, 
+  NOTE_DS6, NOTE_D6, NOTE_C6,
+  NOTE_C6,  NOTE_D6, NOTE_DS6, NOTE_C6,
+  NOTE_AS6, NOTE_C6, NOTE_G5,
+  
+  NOTE_AS6, NOTE_G6, 
+  NOTE_DS6, NOTE_F6, NOTE_G6, NOTE_C6,
+  NOTE_D6,  NOTE_F6, NOTE_D6, NOTE_AS5, NOTE_C6
+};
+
+const int gourmet_race_
+
+
+/* <<< Buzzer <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
+
+
+
+/* >>> Main Program >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
 
 void setup()
 {
-  // Set up serial monitor
-  Serial.begin(115200);
-  Wire.begin();
-  
-  // Set all pins as inputs
-  pinMode(LEFT_RIGHT, INPUT);
-  pinMode(FORWARD_BACKWARD, INPUT);
-  pinMode(WEAPON_SWITCH, INPUT);
+  L_Wheel.attach(S1_PIN);
+  R_Wheel.attach(S2_PIN);
 
-  // Attach and arm ESCs
-  Left.attach(3); 
-  Right.attach(9);
-  Weapon.attach(5);
-
-  Left.writeMicroseconds(minMotorSpeed);
-  Right.writeMicroseconds(minMotorSpeed);
-  Weapon.writeMicroseconds(minMotorSpeed);
-
-  Serial.println(F("Plug in the ESCs - wait for confirmation beeps"));
-  //while (IRCode != 2) { checkIRCode(); }
-  Serial.println(F("Servo motors successfuly armed -- System Ready!\n"));
-
-  delay(1000);
+  pinMode(FWD_CHANNEL, INPUT);
+  pinMode(TRN_CHANNEL, INPUT);
 }
-
 
 void loop()
 {
   adjustMotors();
-  monitorWeapon();
-  delay(500);
 }
 
-void adjustMotors() {
-  int x_speed, y_speed;
-  int speed_left, speed_right;
-  
-  x_speed =  readChannel(LEFT_RIGHT, minMotorSpeed, maxMotorSpeed);
-  y_speed = readChannel(FORWARD_BACKWARD, minMotorSpeed, maxMotorSpeed);
+/* <<< Main Program <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
 
-  if (x_speed > 0) {
-    speed_left = filterSpeed(x_speed, y_speed);
-    speed_right = filterSpeed(x_speed, (-1 * y_speed));
-  }
-  else if (x_speed < 0) {
-    speed_left = filterSpeed(x_speed, (-1 * y_speed));
-    speed_right = filterSpeed(x_speed, y_speed);
+
+
+/* >>> Motor Functions >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+
+void adjustMotors()
+{
+  int speed, speed_left, speed_right;
+  bool move_forwards, turn_right;
+  
+  move_forwards = ((BF_Value = readChannel(FWD_CHANNEL)) > 0);
+  turn_right = ((LR_Value = readChannel(TRN_CHANNEL)) > 0);
+  
+  /* --------------------------------------------------- */
+  /*  _________________________________________________  */
+  /* |                                                 | */
+  /* | ! When BF_Value > 0, bot is moving forwards   ! | */
+  /* | ! When LR_Value > 0, bot is turning right     ! | */
+  /* |_________________________________________________| */
+  /* |                                                 | */
+  /* | ! When LR > 0, speed_left > speed_right       ! | */
+  /* | ! When LR < 0, speed_left < speed_right       ! | */
+  /* |_________________________________________________| */
+  /*                                                     */
+  /* --------------------------------------------------- */
+
+/*
+  BF_Value *= 3;
+  LR_Value *= 1;
+
+  if (turn_right) {
+    speed_left = (BF_Value + LR_Value) / 4;
+    speed_right = (BF_Value - LR_Value) / 4;
   }
   else {
-    speed_left = speed_right = 0;
+    speed_left = (BF_Value - LR_Value) / 4;
+    speed_right = (BF_Value + LR_Value) / 4;
   }
+*/
 
-  Left.writeMicroseconds(speed_left);
-  Right.writeMicroseconds(speed_right);
+  L_Wheel.writeMicroseconds(BF_Value);
+  R_Wheel.writeMicroseconds(LR_Value);
 }
 
-// Read the number of a specified channel and convert to the range provided.
-// If the channel is off, return the default value
-__attribute__((always_inline)) int readChannel(int channelInput, int minLimit, int maxLimit) 
+/* <<< Motor Functions <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
+
+
+
+/* >>> Receiver Functions >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+
+__attribute__((always_inline)) int readChannel(int channelInput) 
 {
-  return map(pulseIn(channelInput, HIGH, 30000), -180, 180, minLimit, maxLimit);
+  //return map(pulseIn(channelInput, HIGH, 30000), 1000, 2000, RCV_MIN, RCV_MAX);
+  return pulseIn(channelInput, HIGH, 30000);
 }
 
-__attribute__((always_inline)) int filterSpeed(int x_speed, int y_speed)
+__attribute__((always_inline)) bool readSwitch(int channelInput)
 {
-  return (((3 * x_speed) / 4) + (y_speed / 4));
-}
-
-// Read the switch channel and return a boolean value
-__attribute__((always_inline)) bool readSwitch(byte channelInput)
-{
-  return (readChannel(channelInput, 0, 100) > 50);
+  return (map(pulseIn(channelInput, HIGH, 30000), 1000, 2000, 0, 100) > 50);
 } 
 
 __attribute__((always_inline)) void monitorWeapon()
 {
-  return readSwitch(WEAPON_SWITCH) ? Weapon.writeMicroseconds(maxMotorSpeed) : Weapon.writeMicroseconds(SHUTDOWN);
+  return;
 }
+
+/* <<< Receiver Functions <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< */
